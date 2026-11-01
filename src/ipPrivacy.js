@@ -19,7 +19,11 @@ function hasTurnConfiguration(db) {
 // A relay candidate can also carry the client's address in raddr; refuse it.
 function safeCandidateLine(line) {
   if (typeof line !== 'string' || line.length > 2048) return false;
-  if (!/(?:^|\s)typ relay(?:\s|$)/i.test(line)) return false;
+  const fields = line.replace(/^a=/i, '').trim().split(/\s+/);
+  if (fields.length < 8 || !/^candidate:\S+$/i.test(fields[0]) ||
+      !/^\d+$/.test(fields[1]) || !/^(udp|tcp)$/i.test(fields[2]) ||
+      !/^\d+$/.test(fields[3]) || !fields[4] || !/^\d+$/.test(fields[5]) ||
+      fields[6].toLowerCase() !== 'typ' || fields[7].toLowerCase() !== 'relay') return false;
   const related = line.match(/(?:^|\s)raddr\s+(\S+)/i);
   return !related || ['0.0.0.0', '::', '::0'].includes(related[1]);
 }
@@ -33,6 +37,7 @@ function safeCandidate(candidate) {
 
 function safeDescription(description) {
   if (!description || typeof description !== 'object' ||
+      !['offer', 'answer'].includes(description.type) ||
       typeof description.sdp !== 'string') return false;
   const lines = description.sdp.split(/\r?\n/);
   const relayAddresses = new Set(['0.0.0.0', '127.0.0.1', '::', '::1']);
