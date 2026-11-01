@@ -13,8 +13,8 @@ services:
     image: haven-private:local
     container_name: haven
     ports:
-      - "${PORT:-3000}:${PORT:-3000}"    # Main HTTPS port
-      - "${REDIRECT_PORT:-3001}:${REDIRECT_PORT:-3001}"  # HTTP → HTTPS redirect
+      - "127.0.0.1:${PORT:-3000}:${PORT:-3000}"    # Main HTTPS port
+      - "127.0.0.1:${REDIRECT_PORT:-3001}:${REDIRECT_PORT:-3001}"  # HTTP → HTTPS redirect
       # ── Voice relay (Settings → Large Server Setup) ──
       # Uncomment both lines when you switch the relay on, and use the same
       # port the setup page shows. It needs UDP and TCP.
