@@ -1201,6 +1201,8 @@ app.get('/api/donors', (req, res) => {
 });
 
 require('./src/routes/health')({ app });
+// Xorishi Lore Engine: administrator-only Phase 1 API.
+require('./src/routes/xle')({ app, verifyToken, verifyAdminFromDb });
 
 // ── Version endpoint (for update checker, authenticated users only) ──
 app.get('/api/version', (req, res) => {
@@ -3073,6 +3075,8 @@ const io = new Server(server, {
 // Initialize
 const db = await initDatabaseAsync();
 const postgresPreview = db.kind === 'postgres';
+// XLE tables are isolated from the existing Haven bot and user schemas.
+if (!postgresPreview) require('./src/xle/storage').install(db);
 
 // (#5335) Seed starter stickers now that the DB is ready.
 

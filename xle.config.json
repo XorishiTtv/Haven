@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "enabled": false,
+  "default_provider": "openai",
+  "memory": {
+    "max_entries_per_scope": 100
+  },
+  "characters": [
+    {
+      "id": "gnisu",
+      "name": "Gnisu",
+      "role": "coordinator",
+      "provider": "openai",
+      "personality_file": "gnisu.txt",
+      "enabled": true
+    },
+    {
+      "id": "da_scribe",
+      "name": "Da Scribe",
+      "role": "moderation",
+      "provider": "openai",
+      "personality_file": "da_scribe.txt",
+      "enabled": true
+    },
+    {
+      "id": "gnije",
+      "name": "Gnije",
+      "role": "companion",
+      "provider": "openai",
+      "personality_file": "gnije.txt",
+      "enabled": true
+    },
+    {
+      "id": "zytheris",
+      "name": "Zytheris",
+      "role": "entertainment",
+      "provider": "xai",
+      "personality_file": "zytheris.txt",
+      "enabled": true
+    },
+    {
+      "id": "tachiagarithevoid",
+      "name": "TachiagariTheVoid",
+      "role": "lore_events",
+      "provider": "openai",
+      "personality_file": "tachiagarithevoid.txt",
+      "enabled": true
+    }
+  ]
+}
