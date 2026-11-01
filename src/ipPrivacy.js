@@ -31,12 +31,22 @@ function safeCandidateLine(line) {
 function safeCandidate(candidate) {
   if (candidate == null) return true; // End-of-candidates marker.
   if (!candidate || typeof candidate !== 'object') return false;
+  // Prevent custom payload fields from smuggling an IP around the ICE check.
+  const allowed = new Set(['candidate', 'sdpMid', 'sdpMLineIndex', 'usernameFragment']);
+  if (Object.keys(candidate).some(key => !allowed.has(key))) return false;
+  if (candidate.sdpMid != null &&
+      (typeof candidate.sdpMid !== 'string' || !/^[a-zA-Z0-9_-]{1,32}$/.test(candidate.sdpMid))) return false;
+  if (candidate.sdpMLineIndex != null &&
+      (!Number.isInteger(candidate.sdpMLineIndex) || candidate.sdpMLineIndex < 0 || candidate.sdpMLineIndex > 64)) return false;
+  if (candidate.usernameFragment != null &&
+      (typeof candidate.usernameFragment !== 'string' || !/^[a-zA-Z0-9+/_=-]{1,256}$/.test(candidate.usernameFragment))) return false;
   if (candidate.candidate === '') return true;
   return safeCandidateLine(candidate.candidate);
 }
 
 function safeDescription(description) {
   if (!description || typeof description !== 'object' ||
+      Object.keys(description).some(key => key !== 'type' && key !== 'sdp') ||
       !['offer', 'answer'].includes(description.type) ||
       typeof description.sdp !== 'string') return false;
   const lines = description.sdp.split(/\r?\n/);
