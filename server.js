@@ -955,6 +955,7 @@ require('./src/routes/channel-prefs')({ app, verifyToken });
 
 // ── ICE servers endpoint (STUN + optional TURN) ──────────
 app.get('/api/ice-servers', (req, res) => {
+  const strictIpPrivacy = require('./src/ipPrivacy').enabled();
   const token = req.headers.authorization?.split(' ')[1];
   const user = token ? verifyToken(token) : null;
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -988,7 +989,7 @@ app.get('/api/ice-servers', (req, res) => {
 
   // An explicit admin disable takes precedence over env and built-in servers.
   // Empty iceServers tells WebRTC to use direct host candidates only.
-  if (dbSettings.voice_ice_disabled === 'true') return res.json({ iceServers: [] });
+  if (dbSettings.voice_ice_disabled === 'true' && !strictIpPrivacy) return res.json({ iceServers: [] });
 
   // STUN precedence: admin setting → STUN_URLS env → built-in defaults.
   // 3.20.2 (#5399): old defaults (stun.stunprotocol.org + stun.nextcloud.com)
@@ -1069,12 +1070,15 @@ app.get('/api/ice-servers', (req, res) => {
   // refuses to turn this on until turn_url is set. Belt-and-braces here too:
   // if TURN somehow vanished since the toggle was flipped, serve normal ICE
   // rather than handing clients a config that cannot connect at all.
-  const wantsRelay = dbSettings.voice_force_relay === 'true';
+  const wantsRelay = strictIpPrivacy || dbSettings.voice_force_relay === 'true';
   const hasTurn = iceServers.some(s => /^turns?:/i.test(String(s.urls)));
   if (wantsRelay && hasTurn) {
-    return res.json({ iceServers, iceTransportPolicy: 'relay' });
+    return res.json({ iceServers, iceTransportPolicy: 'relay', strictIpPrivacy });
   }
   if (wantsRelay && !hasTurn) {
+    if (strictIpPrivacy) {
+      return res.status(503).json({ error: 'Voice unavailable: a TURN relay is required for strict IP privacy', strictIpPrivacy: true });
+    }
     console.warn('⚠️  voice_force_relay is on but no TURN server is configured; serving normal ICE so voice keeps working');
   }
 
@@ -1104,6 +1108,10 @@ app.get('/api/connection-address', (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
   const user = req.postgresUser || (token ? verifyToken(token) : null);
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  // A joined member must not learn a private origin address from diagnostics.
+  if (require('./src/ipPrivacy').enabled() && !verifyAdminFromDb(user)) {
+    return res.status(403).json({ error: 'Admin only' });
+  }
   try {
     const tunnel = getTunnelStatus();
     if (tunnel && tunnel.active && tunnel.url) {
