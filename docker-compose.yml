@@ -8,8 +8,9 @@
 
 services:
   haven:
-    image: ghcr.io/ancsemi/haven:latest
-    # build: .                    # Uncomment to build from source instead of using the pre-built image
+    # Build this fork locally; upstream's image does not contain privacy patches.
+    build: .
+    image: haven-private:local
     container_name: haven
     ports:
       - "${PORT:-3000}:${PORT:-3000}"    # Main HTTPS port
@@ -26,6 +27,7 @@ services:
     environment:
       - PORT=${PORT:-3000}
       - HOST=0.0.0.0
+      - HAVEN_STRICT_IP_PRIVACY=${HAVEN_STRICT_IP_PRIVACY:-true}
       # - SERVER_NAME=My Haven           # Name shown in the UI
       # - ADMIN_USERNAME=admin            # First account to register becomes admin
       # - GIPHY_API_KEY=                  # Optional: enable GIF search (GIPHY)
