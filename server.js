@@ -612,19 +612,22 @@ if (!sslCert && !sslKey) {
 const useSSL = !!(sslCert && sslKey) && !forceHttp;
 let tlsIssue = null;
 
+const strictContentPrivacy = require('./src/ipPrivacy').enabled();
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-eval'", "'wasm-unsafe-eval'", "blob:", "https://www.youtube.com", "https://w.soundcloud.com", "https://challenges.cloudflare.com"],  // last host: opt-in Turnstile CAPTCHA on registration
+      scriptSrc: strictContentPrivacy
+        ? ["'self'", "'unsafe-eval'", "'wasm-unsafe-eval'", "blob:"]
+        : ["'self'", "'unsafe-eval'", "'wasm-unsafe-eval'", "blob:", "https://www.youtube.com", "https://w.soundcloud.com", "https://challenges.cloudflare.com"],  // last host: opt-in Turnstile CAPTCHA on registration
       styleSrc: ["'self'", "'unsafe-inline'"],  // inline styles (fonts are self-hosted, no third-party CDN)
-      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],  // link preview OG images + GIPHY (http: for local/self-hosted services)
-      connectSrc: ["'self'", "ws:", "wss:", "https:"],  // Socket.IO + cross-origin health checks
-      mediaSrc: ["'self'", "blob:", "data:", "https:", "http:"],  // WebRTC audio + notification sounds + link preview video embeds
+      imgSrc: strictContentPrivacy ? ["'self'", "data:", "blob:"] : ["'self'", "data:", "blob:", "https:", "http:"],  // link preview OG images + GIPHY (http: for local/self-hosted services)
+      connectSrc: strictContentPrivacy ? ["'self'"] : ["'self'", "ws:", "wss:", "https:"],  // Socket.IO + cross-origin health checks
+      mediaSrc: strictContentPrivacy ? ["'self'", "blob:", "data:"] : ["'self'", "blob:", "data:", "https:", "http:"],  // WebRTC audio + notification sounds + link preview video embeds
       fontSrc: ["'self'"],  // self-hosted fonts only (see /public/fonts)
       workerSrc: ["'self'", "blob:"],  // service worker + Ruffle WebAssembly workers
       objectSrc: ["'none'"],
-      frameSrc: ["'self'", "https://open.spotify.com", "https://www.youtube.com", "https://www.youtube-nocookie.com", "https://w.soundcloud.com", "https://challenges.cloudflare.com"],  // Listen Together embeds + game iframes + Turnstile widget
+      frameSrc: strictContentPrivacy ? ["'self'"] : ["'self'", "https://open.spotify.com", "https://www.youtube.com", "https://www.youtube-nocookie.com", "https://w.soundcloud.com", "https://challenges.cloudflare.com"],  // Listen Together embeds + game iframes + Turnstile widget
       baseUri: ["'self'"],
       formAction: ["'self'"],
       frameAncestors: ["'self'"],               // allow mobile app iframe, block third-party clickjacking
