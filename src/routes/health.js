@@ -6,6 +6,8 @@ module.exports = function registerHealth({ app }) {
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Cross-Origin-Resource-Policy', 'cross-origin');
     res.set('Vary', 'Origin');
+    // Strict mode exposes no name, icon, or stable fingerprint to anonymous probes.
+    if (require('../ipPrivacy').enabled()) return res.json({ status: 'online' });
     let name = process.env.SERVER_NAME || 'Haven';
     let icon = null;
     let fingerprint = null;
