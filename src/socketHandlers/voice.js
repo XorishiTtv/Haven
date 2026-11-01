@@ -1,6 +1,7 @@
 'use strict';
 
 const { isString, isInt } = require('./helpers');
+const ipPrivacy = require('../ipPrivacy');
 
 module.exports = function register(socket, ctx) {
   const { io, db, state, userHasPermission, getUserEffectiveLevel, getUserHighestRole,
@@ -17,7 +18,8 @@ module.exports = function register(socket, ctx) {
   // starts the call and kept until it empties (see src/voiceRelay).
   function callKind(code, occupied = true) {
     const relay = state.voiceRelay;
-    if (!relay) return 'direct';
+    // Strict mode uses TURN-only WebRTC, never the origin-hosted SFU.
+    if (ipPrivacy.enabled() || !relay) return 'direct';
     return (occupied && relay.currentKind(code)) || relay.kindFor(code, occupied);
   }
 
@@ -157,6 +159,9 @@ module.exports = function register(socket, ctx) {
   });
   socket.on('voice-join', (data) => {
     if (!data || typeof data !== 'object') return;
+    if (ipPrivacy.enabled() && (!ipPrivacy.hasTurnConfiguration(db) || data.privacyRelay !== 1)) {
+      return socket.emit('error-msg', 'Voice requires a working TURN relay and a privacy-compatible client');
+    }
     socket.relayCapable = data.relay === 1;
     const code = typeof data.code === 'string' ? data.code.trim() : '';
     if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
@@ -381,6 +386,7 @@ module.exports = function register(socket, ctx) {
     if (!data || typeof data !== 'object') return;
     if (!isString(data.code, 8, 8) || !isInt(data.targetUserId) || !data.offer) return;
     if (typeof data.offer !== 'object' || JSON.stringify(data.offer).length > MAX_SDP_SIZE) return;
+    if (ipPrivacy.enabled() && !ipPrivacy.safeDescription(data.offer)) return;
     if (data.offerId != null && !isString(data.offerId, 1, MAX_OFFER_ID_SIZE)) return;
     if (!voiceUsers.get(data.code)?.has(socket.user.id)) return;
     const target = voiceUsers.get(data.code)?.get(data.targetUserId);
@@ -398,6 +404,7 @@ module.exports = function register(socket, ctx) {
     if (!data || typeof data !== 'object') return;
     if (!isString(data.code, 8, 8) || !isInt(data.targetUserId) || !data.answer) return;
     if (typeof data.answer !== 'object' || JSON.stringify(data.answer).length > MAX_SDP_SIZE) return;
+    if (ipPrivacy.enabled() && !ipPrivacy.safeDescription(data.answer)) return;
     if (data.offerId != null && !isString(data.offerId, 1, MAX_OFFER_ID_SIZE)) return;
     if (!voiceUsers.get(data.code)?.has(socket.user.id)) return;
     const target = voiceUsers.get(data.code)?.get(data.targetUserId);
@@ -415,6 +422,7 @@ module.exports = function register(socket, ctx) {
     if (!data || typeof data !== 'object') return;
     if (!isString(data.code, 8, 8) || !isInt(data.targetUserId)) return;
     if (data.candidate && (typeof data.candidate !== 'object' || JSON.stringify(data.candidate).length > MAX_ICE_SIZE)) return;
+    if (ipPrivacy.enabled() && !ipPrivacy.safeCandidate(data.candidate)) return;
     if (!voiceUsers.get(data.code)?.has(socket.user.id)) return;
     const target = voiceUsers.get(data.code)?.get(data.targetUserId);
     if (target) {
@@ -900,6 +908,11 @@ module.exports = function register(socket, ctx) {
       return;
     }
     socket.relayCapable = data.relay === 1;
+    if (ipPrivacy.enabled() && (!ipPrivacy.hasTurnConfiguration(db) || data.privacyRelay !== 1)) {
+      socket.emit('error-msg', 'Voice requires a working TURN relay and a privacy-compatible client');
+      if (typeof data.code === 'string') socket.emit('voice-channel-gone', { code: data.code });
+      return;
+    }
     const code = typeof data.code === 'string' ? data.code.trim() : '';
     if (!code || !/^[a-f0-9]{8}$/i.test(code)) {
       console.warn(`[VoiceDiag] voice-rejoin REJECTED: invalid code "${code}"`);

@@ -99,6 +99,7 @@ module.exports = function registerLinkPreview(deps) {
   mediaProxy.loadIndex();
 
   function mediaProxyEnabled() {
+    if (require('../ipPrivacy').enabled()) return true;
     try {
       const { getDb } = require('../database');
       const row = getDb().prepare("SELECT value FROM server_settings WHERE key = 'media_proxy_enabled'").get();
@@ -107,6 +108,7 @@ module.exports = function registerLinkPreview(deps) {
   }
   app.set('mediaProxyEnabled', mediaProxyEnabled);
   async function mediaProxyEnabledAsync() {
+    if (require('../ipPrivacy').enabled()) return true;
     const current = require('../database').getDb();
     if (current.kind !== 'postgres') return mediaProxyEnabled();
     const row = await current.prepare("SELECT value FROM server_settings WHERE key = 'media_proxy_enabled'").get();
@@ -174,6 +176,9 @@ module.exports = function registerLinkPreview(deps) {
 
     const cached = mediaProxy.get(url);
     if (cached) return send(cached);
+    // Fetching a member-controlled URL from the origin reveals the server's
+    // egress IP to the URL owner. Only serve already-cached media in strict mode.
+    if (require('../ipPrivacy').enabled()) return res.status(403).json({ error: 'External media fetch disabled in strict privacy mode' });
 
     try {
       const item = await mediaProxy.fetchAndCache(url, { allowPrivate: allowPrivatePreviews });
@@ -188,6 +193,8 @@ module.exports = function registerLinkPreview(deps) {
   });
 
   app.get('/api/link-preview', async (req, res) => {
+    // Link unfurling is a server-side outbound request to a member's URL.
+    if (require('../ipPrivacy').enabled()) return res.status(403).json({ error: 'External link previews disabled in strict privacy mode' });
     const token = req.headers.authorization?.split(' ')[1];
     const user = token ? verifyToken(token) : null;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });

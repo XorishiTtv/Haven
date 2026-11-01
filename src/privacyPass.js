@@ -225,6 +225,9 @@ function looksLikeStrippable(file) {
 
 async function cleanFile(file, { signal, onProgress } = {}) {
   if (!tools.toolsReady()) {
+    if (require('./ipPrivacy').enabled()) {
+      throw new PrivacyError('PRIVACY_TOOLS_REQUIRED', 'ExifTool and FFmpeg are required for uploads in strict IP privacy mode');
+    }
     // Haven's own cleaner: JPEG, PNG and WebP photos; anything else is left
     // as it is. The file keeps its date, as it does below.
     const stat = fs.statSync(file);
@@ -467,7 +470,7 @@ async function sweepUploads() {
       if (key) require('./storage').noteSize(key.rel, fs.statSync(abs).size);
     } catch (e) {
       if (e.code === 'ENOENT') continue;                  // deleted while we were busy
-      if (e.code !== 'PRIVACY_GPS_REMAINS') {
+      if (e.code !== 'PRIVACY_GPS_REMAINS' && !(require('./ipPrivacy').enabled() && e.code === 'PRIVACY_TOOLS_REQUIRED')) {
         console.warn(`[privacy] Could not check ${rel}, left as it is: ${reasonOf(e)}`);
         continue;
       }

@@ -182,7 +182,7 @@ class VoiceManager {
   async _fetchIceServers() {
     try {
       const token = localStorage.getItem('haven_token');
-      if (!token) return;
+      if (!token) return false;
       // 4s hard cap: if the server is restarting or unreachable, we
       // fall back to the default STUN-only config rather than hanging
       // join() indefinitely. Without the timeout, a click on Start Voice
@@ -230,9 +230,12 @@ class VoiceManager {
           if (this._stunProbeStarted) this._probeConfiguredStun(data.iceServers);
           else this._pendingConfiguredStun = data.iceServers;
         }
+        return Array.isArray(data.iceServers);
       }
+      return false;
     } catch (err) {
-      console.warn('Could not fetch ICE servers, using defaults:', err && err.message);
+      console.warn('Could not fetch ICE servers; voice join requires server configuration:', err && err.message);
+      return false;
     }
   }
 
@@ -613,6 +616,8 @@ class VoiceManager {
     return {
       // Sent with every join and rejoin: this client can use the voice relay.
       relay: typeof window !== 'undefined' && typeof window.HavenRelaySession === 'function' ? 1 : 0,
+      // The server refuses old clients in strict IP privacy mode.
+      privacyRelay: this._relayOnly && this._adminIceServersLoaded ? 1 : 0,
     };
   }
 
@@ -1637,7 +1642,6 @@ class VoiceManager {
     if (this._joinInFlight) return false;
     this._joinInFlight = true;
     this._joiningChannelCode = channelCode;
-    this._ensureStunProbed();
     try {
       const preservedMuteState = this.isMuted;
       const preservedDeafenState = this.isDeafened;
@@ -1673,8 +1677,13 @@ class VoiceManager {
       // Leave existing voice channel if connected elsewhere
       if (this.inVoice) this.leave();
 
-      // Refresh ICE config (TURN credentials may have expired)
-      await this._fetchIceServers();
+      // Fail closed: never start a peer connection from stale/default STUN
+      // settings when the server's relay policy could not be verified.
+      if (!await this._fetchIceServers()) {
+        console.warn('[Voice] Join refused: could not verify the server ICE policy');
+        return false;
+      }
+      this._ensureStunProbed();
 
       // Create/resume AudioContext with user gesture (needed for volume boost)
       this._ensureAudioCtx();
