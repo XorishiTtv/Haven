@@ -57,10 +57,13 @@ test('only relay ICE candidates can be forwarded', () => {
   assert.equal(privacy.safeCandidate({ candidate: '' }), true);
   assert.equal(privacy.safeCandidate(null), true);
   assert.equal(privacy.safeCandidate({ candidate: 'fake typ relay' }), false);
+  assert.equal(privacy.safeCandidate({ candidate: relay, address: '192.168.1.44' }), false);
+  assert.equal(privacy.safeCandidate({ candidate: relay, sdpMid: '192.168.1.44' }), false);
 });
 
 test('SDP cannot include host or reflexive candidates or origin addresses', () => {
   assert.equal(privacy.safeDescription(sdp()), true);
+  assert.equal(privacy.safeDescription({ ...sdp(), ip: '192.168.1.44' }), false);
   assert.equal(privacy.safeDescription(sdp(host)), false);
   assert.equal(privacy.safeDescription(sdp(reflexive)), false);
   assert.equal(privacy.safeDescription(sdp(relay, '192.168.1.44')), false);
