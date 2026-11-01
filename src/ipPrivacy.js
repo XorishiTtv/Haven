@@ -34,9 +34,24 @@ function safeCandidate(candidate) {
 function safeDescription(description) {
   if (!description || typeof description !== 'object' ||
       typeof description.sdp !== 'string') return false;
-  for (const line of description.sdp.split(/\r?\n/)) {
-    if (/^a=candidate:/i.test(line) && !safeCandidateLine(line)) return false;
+  const lines = description.sdp.split(/\r?\n/);
+  const relayAddresses = new Set(['0.0.0.0', '127.0.0.1', '::', '::1']);
+  for (const line of lines) {
     if (/^a=remote-candidates:/i.test(line)) return false;
+    if (!/^a=candidate:/i.test(line)) continue;
+    if (!safeCandidateLine(line)) return false;
+    // In the standard ICE candidate format, the fifth field is its address.
+    const fields = line.split(/\s+/);
+    if (fields.length < 8) return false;
+    relayAddresses.add(fields[4]);
+  }
+  // SDP origin, connection and RTCP fields can disclose an address even when
+  // every ICE candidate is a TURN relay. Permit only placeholders and relay IPs.
+  for (const line of lines) {
+    const address = /^c=IN IP[46]\s+(\S+)/i.exec(line)?.[1] ||
+      /^o=.*\sIN IP[46]\s+(\S+)/i.exec(line)?.[1] ||
+      /^a=rtcp:\d+\s+IN IP[46]\s+(\S+)/i.exec(line)?.[1];
+    if (address && !relayAddresses.has(address)) return false;
   }
   return true;
 }
